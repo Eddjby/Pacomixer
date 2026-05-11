@@ -32,8 +32,7 @@ The three component distances are:
 - **`d_tempo`**: relative BPM difference with an `8%` tolerance band. We
   account for the standard DJ practice of half-time and double-time
   beatmatching: 87 BPM perceptually aligns with 174 BPM (2×) and vice-versa.
-- **`d_embed`**: cosine distance between sonic-character embedding vectors
-  (analogue of CLAP embeddings in the original repo).
+- **`d_embed`**: cosine distance between sonic-character embedding vectors.
 
 The agent uses the **direct transition cost** as the A* heuristic, which is
 admissible because the cost function is a weighted sum of metric distances
@@ -69,7 +68,7 @@ pip install -r requirements.txt
 ```
 
 Only `numpy` is required for the synthetic-data version. If you wish to
-use real audio (the original repo's pipeline), additionally install
+use real audio, additionally install
 `librosa`, `madmom`, `essentia`, and the CLAP model.
 
 ## 5. Usage
