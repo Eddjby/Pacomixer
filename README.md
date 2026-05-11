@@ -1,4 +1,4 @@
-# Auto-DJ Agent — Intelligent Song Transition Planner
+# Pacomixer — Intelligent Song Transition Planner
 
 Final project for *Inteligencia Artificial*, Universidad de las Américas Puebla.
 
