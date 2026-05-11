@@ -1,7 +1,5 @@
 # Pacomixer — Intelligent Song Transition Planner
 
-Final project for *Inteligencia Artificial*, Universidad de las Américas Puebla.
-
 This system implements an **intelligent agent** that, given a starting song
 and a target song from a library, finds the lowest-cost sequence of
 transitions that takes one to the other. The agent uses **A* search** with
