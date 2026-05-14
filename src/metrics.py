@@ -1,17 +1,19 @@
 """
 metrics.py — Transition cost function f(s, a) for the Auto-DJ agent.
 
-Combines three components, each normalised to roughly [0, 1]:
+Combines four components, each normalised to roughly [0, 1]:
     1. Harmonic distance — based on the Circle of Fifths
     2. Tempo distance   — relative BPM difference with a tolerance band
     3. Semantic distance — cosine distance between embedding vectors
+    4. Genre distance   — penalty for mixing across genres (soft preference)
 
-The total cost is a weighted sum: f(s, s') = w_h * d_harm + w_t * d_tempo + w_e * d_emb
+The total cost is a weighted sum:
+    f(s, s') = w_h·d_harm + w_t·d_tempo + w_e·d_emb + w_g·d_genre
 
-A feasibility check is also provided: transitions where any single component
-exceeds its threshold are considered impossible (no DJ would attempt them),
-which removes edges from the action space and forces the agent to find
-intermediate stepping stones.
+A feasibility check is also provided: transitions where any single audio
+component (harmonic, tempo, semantic) exceeds its threshold are considered
+impossible. Genre is *not* used for feasibility — it is a soft preference
+that the A* may override when the ruta lo amerita.
 """
 from __future__ import annotations
 from typing import Dict, Optional
@@ -37,12 +39,14 @@ _MINOR_POS: Dict[str, int] = {
 
 # Default weights — sum to 1.0 for interpretability
 DEFAULT_WEIGHTS: Dict[str, float] = {
-    "harmonic": 0.40,
-    "tempo": 0.30,
-    "semantic": 0.30,
+    "harmonic": 0.30,
+    "tempo": 0.25,
+    "semantic": 0.25,
+    "genre": 0.20,
 }
 
-# Feasibility thresholds — beyond these, the transition is judged unmixable
+# Feasibility thresholds — beyond these, the transition is judged unmixable.
+# Genre is intentionally NOT in feasibility: it only affects cost.
 DEFAULT_FEASIBILITY = {
     "harmonic_max": 0.55,   # at most ~3 steps on circle of fifths + mode change
     "tempo_max": 0.18,      # at most ~18% raw BPM diff after tolerance
@@ -51,11 +55,25 @@ DEFAULT_FEASIBILITY = {
 
 
 def _key_position(key: str) -> Optional[int]:
-    """Return (position, is_minor) tuple or None if key is unknown."""
+    """Return position on the Circle of Fifths or None if unknown."""
     key = key.strip()
     if key.endswith('m'):
         return _MINOR_POS.get(key)
     return _MAJOR_POS.get(key)
+
+
+def _normalize_genre(g: str) -> str:
+    """Lowercase, collapse separators and whitespace for fair comparison.
+    Examples:
+        'Hip-Hop'   → 'hip hop'
+        'HIP_HOP '  → 'hip hop'
+        'Rock/Pop'  → 'rock pop'
+    """
+    if not g:
+        return ""
+    g = g.lower().strip()
+    g = g.replace("-", " ").replace("/", " ").replace("_", " ")
+    return " ".join(g.split())
 
 
 def harmonic_distance(key1: str, key2: str) -> float:
@@ -107,6 +125,33 @@ def semantic_distance(emb1: np.ndarray, emb2: np.ndarray) -> float:
     return (1.0 - cos_sim) / 2.0
 
 
+def genre_distance(g1: str, g2: str) -> float:
+    """
+    Soft penalty for mixing across genres.
+
+    Rules:
+        0.0 — same genre (after normalisation)
+        0.3 — either genre is empty or 'unknown' (neutral, no penalty for ignorance)
+        1.0 — different genres
+
+    Notes:
+        - Comparison is normalised (case-insensitive, separators collapsed):
+          'Hip-Hop' and 'hip hop' and 'HIP_HOP' are all considered equal.
+        - This is intentionally a coarse rule. It does NOT understand
+          that 'Indie Rock' is closer to 'Rock' than to 'Reggaeton';
+          for that the semantic (CLAP) component already captures fine
+          stylistic similarity.
+    """
+    n1 = _normalize_genre(g1)
+    n2 = _normalize_genre(g2)
+
+    if not n1 or not n2 or n1 == "unknown" or n2 == "unknown":
+        return 0.3
+    if n1 == n2:
+        return 0.0
+    return 1.0
+
+
 def transition_cost(
     s1: Song,
     s2: Song,
@@ -114,21 +159,28 @@ def transition_cost(
 ) -> float:
     """
     Total transition cost f(s, a) where a means 'play s2 next after s1'.
-    Returns the weighted sum of the three component distances.
+    Weighted sum of the four component distances.
     """
     w = weights or DEFAULT_WEIGHTS
     h_d = harmonic_distance(s1.key, s2.key)
     t_d = tempo_distance(s1.bpm, s2.bpm)
     s_d = semantic_distance(s1.embedding, s2.embedding)
-    return w["harmonic"] * h_d + w["tempo"] * t_d + w["semantic"] * s_d
+    g_d = genre_distance(s1.genre, s2.genre)
+    return (
+        w.get("harmonic", 0.0) * h_d
+        + w.get("tempo", 0.0) * t_d
+        + w.get("semantic", 0.0) * s_d
+        + w.get("genre", 0.0) * g_d
+    )
 
 
 def transition_components(s1: Song, s2: Song) -> Dict[str, float]:
-    """Return the three raw components (for logging and analysis)."""
+    """Return the four raw components (for logging and analysis)."""
     return {
         "harmonic": harmonic_distance(s1.key, s2.key),
         "tempo": tempo_distance(s1.bpm, s2.bpm),
         "semantic": semantic_distance(s1.embedding, s2.embedding),
+        "genre": genre_distance(s1.genre, s2.genre),
     }
 
 
@@ -138,8 +190,11 @@ def is_feasible(
     thresholds: Optional[Dict[str, float]] = None,
 ) -> bool:
     """
-    True if every individual component is below its threshold.
+    True if every individual audio component is below its threshold.
     A transition is judged 'mixable' only if no single dimension is too harsh.
+
+    Genre is NOT checked here — it only affects cost, allowing the A* to
+    cross genres when the ruta lo amerita (e.g., to reach the goal).
     """
     th = thresholds or DEFAULT_FEASIBILITY
     return (

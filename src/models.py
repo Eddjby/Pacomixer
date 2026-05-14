@@ -23,6 +23,7 @@ class Song:
     key: str
     embedding: np.ndarray
     genre: str = "unknown"  # used only for synthetic data inspection
+    fingerprint: str = ""
 
     def __hash__(self) -> int:
         return hash(self.id)
@@ -43,6 +44,7 @@ class Song:
             "key": self.key,
             "embedding": self.embedding.tolist(),
             "genre": self.genre,
+            "fingerprint": self.fingerprint,
         }
 
     @classmethod
@@ -55,6 +57,7 @@ class Song:
             key=d["key"],
             embedding=np.array(d["embedding"], dtype=np.float32),
             genre=d.get("genre", "unknown"),
+            fingerprint=d.get("fingerprint", ""),
         )
 
 

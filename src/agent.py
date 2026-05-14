@@ -12,7 +12,7 @@ Formalisation (matches the project rubric):
                                 is_feasible(current, s') }
 
     Cost function f(s, a):
-        f(s, s') = w_h·d_harm + w_t·d_tempo + w_e·d_embed
+        f(s, s') = w_h·d_harm + w_t·d_tempo + w_e·d_embed + w_g·d_genre
         (see metrics.transition_cost)
 
     Decision rule (rubric form):
@@ -177,5 +177,6 @@ class TransitionAgent:
                 lines.append(f"        ↓  cost={step_cost:.4f}  "
                              f"[harm={comps['harmonic']:.3f}, "
                              f"tempo={comps['tempo']:.3f}, "
-                             f"sem={comps['semantic']:.3f}]")
+                             f"sem={comps['semantic']:.3f}, "
+                             f"genre={comps['genre']:.3f}]")
         return "\n".join(lines)

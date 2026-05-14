@@ -1,0 +1,9 @@
+# Audio files
+music/
+*.flac
+*.mp3
+*.wav
+*.aiff
+
+# Data pesada
+data/library.json
