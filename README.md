@@ -57,7 +57,8 @@ Pacomixer/
 ├── data/                  Generated library.json
 ├── app.py                 Streamlit graphical interface
 ├── main.py                CLI demonstration
-├── extract_library.py     Real audio analyzer
+├── extract_library.py     Real audio analyzer (CLAP/essentia/mutagen, incremental cache)
+├── run.bat                One-click Windows launcher (conda env + Streamlit)
 ├── requirements.txt
 └── README.md
 ```
@@ -70,9 +71,15 @@ cd Pacomixer
 pip install -r requirements.txt
 ```
 
-> **Windows note:** `madmom` requires Cython and Microsoft C++ Build Tools.
-> Install Cython first with `conda install cython`, then run
-> `pip install --no-build-isolation madmom`.
+> **Optional analyzer enhancements.** `extract_library.py` works out of the
+> box with `librosa` (BPM via `beat_track`, key via Krumhansl chroma, MFCC
+> embeddings). For higher quality it auto-detects and uses, if installed:
+>
+> - **CLAP** 512-dim embeddings on GPU — `pip install msclap torch`
+> - **essentia** key detection — `pip install essentia`
+> - **mutagen** genre tags — `pip install mutagen`
+>
+> All are optional; the analyzer falls back gracefully when any is missing.
 
 ## 5. Usage
 
@@ -85,6 +92,9 @@ streamlit run app.py
 Opens automatically at `http://localhost:8501`. Select start and goal songs
 from the dropdowns and click **Planear transición**.
 
+> **Windows shortcut:** double-click `run.bat` to auto-activate the `Pacomixer`
+> conda environment and launch the interface in one step.
+
 ### Analyze your own music library
 
 Place your audio files (`.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`, `.aiff`) in a
@@ -94,14 +104,19 @@ Place your audio files (`.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`, `.aiff`) in a
 python extract_library.py ./music
 ```
 
-This generates `data/library.json` with BPM, key, and embeddings for every
-song. Name your files as `Artist - Title.mp3` for automatic metadata parsing.
+This generates `data/library.json` with BPM, key, embedding, and genre for
+every song. Name your files as `Artist - Title.mp3` for automatic metadata
+parsing.
 
-> **Known fix:** If you get `only 0-dimensional arrays can be converted to
-> Python scalars`, update line ~75 in `extract_library.py`:
-> ```python
-> return round(float(np.atleast_1d(tempo)[0]), 2)
-> ```
+**Incremental by default.** Re-running only analyzes new or modified files
+(each song is fingerprinted by name + size + mtime), so adding a few tracks is
+fast. Useful flags:
+
+```bash
+python extract_library.py ./music --force      # re-analyze everything
+python extract_library.py ./music --prune      # drop songs no longer present
+python extract_library.py ./music --output data/custom.json
+```
 
 ### CLI — quick demo (synthetic library)
 
@@ -183,18 +198,21 @@ with an average cost delta of `+0.08`.
 
 ## 8. Known limitations
 
-- `genre` is not automatically detected from audio — files are tagged as
-  `"real"` when analyzed. Genre detection via metadata tags or CLAP text
-  embeddings is planned for a future release.
+- `genre` is read from each file's ID3 tags (via `mutagen`); files without a
+  genre tag are labelled `"Unknown"`. Genre is **not** inferred from the audio
+  signal itself — content-based detection (e.g. CLAP text similarity) is still
+  planned.
 - The path-storage A* implementation enforces a "no song twice within a
   path" constraint, which can occasionally produce paths ~1–7% worse than
   the unrestricted optimum.
 
 ## 9. Roadmap
 
-- [ ] CLAP audio embeddings (512 dims) replacing MFCC (16 dims)
-- [ ] GPU acceleration via PyTorch + CUDA 12.4
-- [ ] Automatic genre detection from file metadata or CLAP text similarity
+- [x] CLAP audio embeddings (512 dims) with MFCC (16 dims) fallback
+- [x] GPU acceleration via PyTorch + CUDA for CLAP embeddings
+- [x] Genre detection from file metadata (ID3 tags via `mutagen`)
+- [ ] Content-based genre detection from the audio signal (CLAP text similarity)
+- [ ] essentia-based key detection bundled and enabled by default
 
 ## 10. Differences from the base repository
 
