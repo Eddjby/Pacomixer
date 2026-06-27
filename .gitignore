@@ -6,4 +6,8 @@ music/
 *.aiff
 
 # Data pesada
-data/library.json"music/" 
+data/library.json
+
+# Python
+__pycache__/
+*.pyc
